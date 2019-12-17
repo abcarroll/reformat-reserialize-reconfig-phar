@@ -1,0 +1,38 @@
+#!/bin/bash
+
+php_cmd="/usr/bin/php7.4"
+phar_cmd="/usr/bin/php7.4 /usr/bin/phar7.4";
+rsync_cmd="rsync"
+code_dir="/srv/ab-php/simple-type-convert/"
+
+tmpdir=$(mktemp -t phpstripper.XXXXXXXXXX -d)
+echo "Temporary Directory is: $tmpdir"
+echo ""
+$rsync_cmd -avhHAX --delete-during --exclude="compile" --exclude="composer.lock" --exclude="*.backup.php" --exclude="*Tests*/" "$code_dir" "${tmpdir}/"
+for phpfile in `find "$tmpdir/" -type f -name \*.php`
+do
+    phpfile_tmp="${phpfile}.stripped"
+    echo "$phpfile > $phpfile_tmp"
+    $php_cmd -w "$phpfile" 2>>"./error.log" 1>"$phpfile_tmp"
+    mv "$phpfile_tmp" "$phpfile"
+done
+
+echo "------------"
+
+phar_file="convert.phar"
+rm -f "${phar_file}"
+# -l 2 should be the count of / in the path, i.e. /tmp/stripper.foo => 2 [without trailing]
+$phar_cmd pack -f "${phar_file}" "${tmpdir}/"
+$php_cmd -r 'echo \Phar::createDefaultStub();' | \
+  $phar_cmd stub-set -f "${phar_file}" -b '/usr/bin/env php'
+$phar_cmd sign -f "${phar_file}" -h sha256
+$phar_cmd  compress -f "${phar_file}" -c 'auto'
+chmod +x "${phar_file}"
+
+phar_abs=$(realpath "$phar_file")
+php -l "${phar_abs}"
+
+stat "$phar_abs"
+echo ""
+ls -la "$phar_abs"
+

@@ -1,0 +1,6 @@
+{
+    "require": {
+        "ab/zend-config": "^0.1.0",
+        "zendframework/zend-config-aggregator": "^1.1"
+    }
+}
